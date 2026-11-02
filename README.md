@@ -1,49 +1,49 @@
 # Embodied Agent Runtime
-> 项目定位：**纯仿真、工程研究型开源项目**
-> 核心目标：从零实现一套基于VLM+Function Calling的具身智能Agent运行时，研究通用大模型如何可靠控制带物理不确定性的外部仿真环境。
-> 一句话区分：**不训练机器人底层模型，不直接输出关节角；让大模型调用抽象机器人技能接口完成物理任务**。
+> Project Profile: **Pure Simulation, Engineering Research Open-Source Project**
+> Core Goal: Build a VLM + Function Calling based embodied agent runtime from scratch. Research how general large language models can reliably control external simulated environments with physical states, execution constraints and stochastic uncertainties.
+> Key Distinction: **We do not train low-level robot models or directly output joint angles. Instead, we enable LLMs to invoke abstract robot skill interfaces to complete physical tasks.**
 
-## 📖 项目简介
-Embodied Agent Runtime 是一个模块化、可扩展的具身智能Agent运行时框架。
-该项目的核心不是机器人运动算法或大模型预训练，而是**Agent工程（Agent Engineering）**在具身场景的落地实践：
-将VLM视觉感知、大模型推理规划、工具调用、状态管理、异常恢复解耦，用自然语言指令驱动仿真机械臂完成抓取、放置等物理操作。
+## 📖 Project Overview
+Embodied Agent Runtime is a modular, extensible runtime framework for embodied AI agents.
+This project is not focused on robot motion algorithms or LLM pre-training. Its core is **Agent Engineering** practiced in embodied scenarios:
+Decouple VLM visual perception, LLM reasoning & planning, function calling, state management and failure recovery. Natural language instructions drive a simulated robotic arm to perform pick-and-place and other physical manipulation tasks.
 
-项目采用**两阶段仿真路线**：
-1. 第一阶段：MuJoCo + Gymnasium Robotics（Fetch机械臂），轻量快速搭建Agent系统，聚焦Agent循环、工具抽象、错误恢复；
-2. 第二阶段：升级至Isaac Lab，支持更复杂场景、多传感器，可对接ROS2。
+We adopt a two-stage simulation roadmap:
+1. Phase 1: MuJoCo + Gymnasium Robotics (Fetch robotic arm). Lightweight setup to build the agent system rapidly. Focus on agent loop, tool abstraction and error recovery.
+2. Phase 2: Upgrade to Isaac Lab for complex scenes, multi-sensor support, with optional ROS 2 integration.
 
-> 核心架构原则：`Agent ≠ Robot Controller`
-> Agent 负责**决策、规划、编排**；Robot Runtime 负责**物理执行、运动规划、约束校验**；Function Calling 是两者之间强契约式接口。
+> Core Architecture Principle: `Agent ≠ Robot Controller`
+> Agent handles **decision-making, planning and orchestration**; Robot Runtime handles **physical execution, motion planning and constraint validation**; Function Calling acts as a strongly contracted interface between the two.
 
-## ✅ 项目边界：做什么 / 不做什么
-### 核心研究内容
-- VLM 视觉场景理解
-- 可观测的 Agent ReAct 循环
-- 标准化 Function Calling 工具调用
-- 工具注册与调度系统 Tool Registry
-- 任务规划与显式状态管理
-- 执行错误检测与自动恢复
+## ✅ Project Scope: What We Build / What We Exclude
+### Core Research Scope
+- VLM visual scene understanding
+- Observable ReAct agent loop
+- Standardized Function Calling
+- Tool registry & dispatching system
+- Task planning and explicit state management
+- Execution error detection & automatic recovery
 
-### 复用成熟组件（不重新造轮子）
-- 机械臂运动规划
-- 抓取放置底层控制逻辑
+### Mature Reused Components (No Custom Implementation)
+- Robotic arm motion planning
+- Low-level pick/place control logic
 
-### 不在本项目内实现
-- VLA / 机器人端到端模型训练
-- 强化学习训练
-- World Model 世界模型
-- 多智能体 Multi-Agent 协作（暂不纳入）
+### Out-of-Scope for This Project
+- End-to-end VLA robot model training
+- Reinforcement learning training
+- World model
+- Multi-agent collaboration (deferred)
 
-> 关键设计约束：**VLM只能读取相机图像与工具返回结果，不能直接读取仿真引擎Ground-truth物体坐标**，保证视觉感知实验有效性。
-> 三个数据通道隔离：Agent可见观测数据 / 仿真引擎内部真实状态 / Evaluator评估指标。
+> Critical Design Constraint: **The VLM can only consume camera images and tool return results. It cannot directly access ground-truth object coordinates from the simulator, to preserve the validity of visual perception experiments.**
+> Three isolated data channels: Agent-visible observations / Internal simulator ground-truth states / Evaluator metrics.
 
-## 🏗️ 系统五层架构
+## 🏗️ 5-Tier System Architecture
 ```
 User Natural Language Instruction
         ↓
 ┌─────────────────────────────────────┐
 │ ① VLM Adapter                      │
-│ 图像输入、场景理解、物体语义定位      │
+│ Image ingestion, scene understanding, semantic object grounding │
 └───────────────┬─────────────────────┘
                 ↓
 ┌─────────────────────────────────────┐
@@ -54,209 +54,207 @@ User Natural Language Instruction
                 ↓
 ┌─────────────────────────────────────┐
 │ ③ Tool & Skill Layer               │
-│ Tool（模型调用接口） ←→ Skill（执行能力封装）│
-│ 工具注册、参数校验、异步任务管理      │
+│ Tool (LLM-callable schema) ←→ Skill (underlying capability) │
+│ Tool registration, param validation, async task management │
 └───────────────┬─────────────────────┘
                 ↓
 ┌─────────────────────────────────────┐
 │ ④ Robot Runtime                    │
-│ 运动规划、夹爪控制、碰撞检测、执行状态 │
+│ Motion planning, gripper control, collision checking, execution state │
 └───────────────┬─────────────────────┘
                 ↓
 ┌─────────────────────────────────────┐
 │ ⑤ Simulation Environment           │
-│ MuJoCo物理引擎、机械臂、物体、RGB相机 │
+│ MuJoCo physics engine, robot arm, objects, RGB camera │
 └─────────────────────────────────────┘
         ↓ Observation Feedback
-新图像观测回流至VLM，形成闭环
+New visual observations flow back to VLM to close the loop
 ```
 
-### 模块职责简述
-1. **VLM Adapter**：把相机RGB图像转为模型可读的场景物体描述、目标定位信息；不读取仿真内部真值。
-2. **Agent Runtime**：项目核心，实现ReAct循环、任务分解、工具路由、任务状态维护、失败恢复策略。
-3. **Tool & Skill Layer**：
-   - Tool：给大模型调用的**语义化接口定义**（JSON Schema）
-   - Skill：Tool背后封装的机器人动作能力，一个Skill可组合多个底层动作
-4. **Robot Runtime**：无LLM依赖层，将语义技能转换为笛卡尔空间运动、夹爪控制，处理底层运动约束。
-5. **Simulation Env**：仅负责物理仿真、碰撞、渲染相机图像，不感知Agent逻辑。
+### Module Responsibilities
+1. **VLM Adapter**: Convert RGB camera images into semantically described scene objects and grounded target positions. No direct access to simulator ground truth.
+2. **Agent Runtime**: Project core. Implements ReAct loop, task decomposition, tool routing, task state tracking and failure recovery policies.
+3. **Tool & Skill Layer**:
+   - Tool: High-level semantic interface definition exposed to LLM (JSON Schema)
+   - Skill: Encapsulated robot capability behind a tool. One skill may compose multiple low-level actions.
+4. **Robot Runtime**: LLM-free layer. Translate semantic skills into Cartesian-space motion and gripper commands, enforcing low-level motion constraints.
+5. **Simulation Env**: Handles physics simulation, collision, rendering and camera image generation only; no awareness of agent logic.
 
-## 🛠️ 工具接口设计（Function Calling）
-统一工具调用协议：`ToolCall <--> ToolResult`，支持异步执行、状态轮询、超时/取消。
-工具状态枚举：`ACCEPTED / RUNNING / SUCCEEDED / FAILED / CANCELLED`
+## 🛠️ Function Calling Interface Design
+Unified tool invocation protocol: `ToolCall <--> ToolResult`, supporting async execution, status polling, timeout and cancellation.
+Tool status enum: `ACCEPTED / RUNNING / SUCCEEDED / FAILED / CANCELLED`
 
-### 三类工具集
-#### A. Perception Tools 感知工具
-| 工具 | 输入 | 输出 |
-|------|------|------|
-| observe_scene | camera_id | 当前场景RGB图像 |
-| detect_object | object_name | object_id、视觉置信度与位置描述 |
-| get_object_pose | object_id | 视觉估计3D坐标 |
-| get_robot_state | - | 机械臂末端、夹爪状态 |
+### 3 Tool Groups
+#### A. Perception Tools
+| Tool | Input | Output |
+|------|-------|--------|
+| observe_scene | camera_id | RGB image of current scene |
+| detect_object | object_name | object_id, visual confidence and spatial description |
+| get_object_pose | object_id | visually estimated 3D pose |
+| get_robot_state | None | End-effector and gripper state of robot |
 
-#### B. Manipulation Tools 操作工具
-| 工具 | 输入 | 作用 |
-|------|------|------|
-| move_to | position | 移动机械臂末端执行器 |
-| pick_object | object_id | 抓取目标物体 |
-| place_object | object_id, target_id | 将物体放置到目标容器/位置 |
-| open_gripper | - | 打开夹爪 |
-| close_gripper | - | 闭合夹爪 |
+#### B. Manipulation Tools
+| Tool | Input | Purpose |
+|------|-------|---------|
+| move_to | position | Move robot end-effector to target pose |
+| pick_object | object_id | Grasp target object |
+| place_object | object_id, target_id | Place object onto target container/location |
+| open_gripper | None | Open gripper |
+| close_gripper | None | Close gripper |
 
-#### C. Monitoring Tools 执行监控工具
-| 工具 | 输入 | 作用 |
-|------|------|------|
-| get_execution_status | task_id | 查询异步任务执行状态 |
-| verify_grasp | object_id | 校验抓取是否成功 |
-| verify_placement | object_id, target_id | 校验放置是否到位 |
-| cancel_execution | task_id | 中断当前任务 |
+#### C. Monitoring Tools
+| Tool | Input | Purpose |
+|------|-------|---------|
+| get_execution_status | task_id | Query async task state |
+| verify_grasp | object_id | Validate grasp success |
+| verify_placement | object_id, target_id | Validate placement completion |
+| cancel_execution | task_id | Abort ongoing task |
 
-> 设计原则：**优先暴露高层语义工具，不向大模型暴露底层关节控制API**。将运动规划交给Robot Runtime，不占用大模型推理资源。
+> Design Principle: **Expose high-level semantic tools only. Do not expose raw joint control APIs to the LLM.** Offload motion planning to Robot Runtime to save LLM inference budget.
 
-## 🔁 Agent ReAct 执行循环
+## 🔁 Agent ReAct Execution Loop
 ```
-用户自然语言指令
+User natural language instruction
     ↓
-构建任务上下文
+Build task context
     ↓
-观测环境（获取相机图像）
+Observe environment (capture camera image)
     ↓
-VLM+LLM推理思考
+VLM + LLM reasoning
     ↓
-是否调用工具？
-├─ 是 → 校验工具参数 → 执行工具 → 获取ToolResult → 更新任务状态 → 检查终止条件 → 回到环境观测
-└─ 否 → 输出最终任务结论
+Tool call required?
+├─ YES → Validate tool args → Execute tool → Receive ToolResult → Update task state → Check termination → Return to environment observation
+└─ NO → Output final task conclusion
 ```
 
-> 关键规则：
-> - **任务成功判定不由大模型文字自述决定，由独立Evaluator读取仿真物理状态做客观校验**；
-> - 显式维护task_state，记录子任务、当前对象、历史失败/成功步骤；
-> - 分层失败处理：瞬时执行失败优先由Skill层重试；环境发生显著变化时触发重新观测；连续失败触发全局重规划；安全约束触发则立即停机。
+> Critical Rules:
+> - **Task success is NOT judged by LLM text self-report. An independent Evaluator checks simulator physical states for objective validation.**
+> - Maintain explicit `task_state` to track subtasks, active objects, historical successes and failures.
+> - Hierarchical failure handling: Transient execution failures get limited retries at Skill layer; significant environment changes trigger re-observation; consecutive failures trigger global replanning; safety violations trigger immediate halt.
 
-## 📁 项目目录结构
+## 📁 Project Directory Layout
 ```
 embodied-agent-runtime/
-├── configs/                    # 配置文件
+├── configs/                    # Configuration files
 │   ├── agent.yaml
 │   ├── simulator.yaml
 │   └── tools.yaml
-├── simulator/                  # 仿真环境封装
+├── simulator/                  # Simulation environment wrapper
 │   ├── environment.py
 │   ├── robot.py
 │   ├── camera.py
 │   ├── objects.py
 │   └── state.py
-├── perception/                 # VLM感知层
+├── perception/                 # VLM perception stack
 │   ├── vlm_adapter.py
 │   ├── scene_observer.py
 │   └── grounding.py
-├── agent/                      # Agent Runtime核心
+├── agent/                      # Core Agent Runtime
 │   ├── controller.py
 │   ├── loop.py
 │   ├── planner.py
 │   ├── state_manager.py
 │   └── recovery.py
-├── tools/                      # 工具定义、注册、分发
+├── tools/                      # Tool definition, registry & dispatcher
 │   ├── registry.py
 │   ├── schemas.py
 │   ├── dispatcher.py
 │   └── robot_tools.py
-├── skills/                     # 技能实现层
+├── skills/                     # Robot skill implementations
 │   ├── base.py
 │   ├── pick.py
 │   ├── place.py
 │   └── move.py
-├── runtime/                    # Robot Runtime底层执行
+├── runtime/                    # Low-level Robot Runtime execution
 │   ├── motion_planner.py
 │   ├── execution_manager.py
 │   └── safety.py
-├── evaluation/                 # 评测、指标、benchmark
+├── evaluation/                 # Evaluation, metrics & benchmark
 │   ├── task_evaluator.py
 │   ├── metrics.py
 │   └── scenarios.py
-├── tests/                      # 单元/集成测试
-├── examples/                   # 示例脚本
-├── main.py                     # 项目入口
+├── tests/                      # Unit & integration tests
+├── examples/                   # Example scripts
+├── main.py                     # Project entrypoint
 └── README.md
 ```
-> 模块解耦目标：后续切换仿真后端（MuJoCo → Isaac Lab）时，Agent上层代码基本无需改动。
+> Decoupling Goal: When switching simulation backend from MuJoCo to Isaac Lab, upper-level Agent code requires minimal modification.
 
-## 🚩 分阶段开发里程碑（Milestone）
-### M1｜搭建仿真环境（基础设施）
-目标：不接入LLM，Python原生控制机械臂
-验收：脚本可驱动Fetch机械臂完成一次抓取+放置，读取RGB图像与机器人状态
+## 🚩 Milestone Roadmap
+### M1｜Simulation Environment Setup (Infrastructure)
+Goal: No LLM integration; control robot arm purely from Python
+Acceptance: Script can drive Fetch arm through a full pick-and-place cycle, read RGB images and robot states.
 
-### M2｜实现Robot Skill Runtime（技能系统）
-目标：封装底层控制为稳定语义技能
-验收：直接调用`pick_object()`/`place_object()`即可完成任务，内置执行状态与基础失败反馈
+### M2｜Robot Skill Runtime (Skill System)
+Goal: Wrap low-level controls into stable semantic skills
+Acceptance: Calling `pick_object()` / `place_object()` directly completes tasks, with execution state tracking and basic failure feedback.
 
-### M3｜实现Function Calling（模型接入）
-目标：VLM能够自主选择并调用机器人工具
-验收：输入自然语言指令，模型自主调用多轮感知/操作工具
+### M3｜Function Calling Integration (Model Integration)
+Goal: VLM autonomously selects and invokes robot tools
+Acceptance: Given natural language instruction, model can invoke multiple perception/manipulation tools iteratively.
 
-### M4｜实现Agent Loop（核心研究）
-目标：长程多子任务执行、显式状态管理
-验收：连续执行≥3个技能组合任务，稳定维护任务上下文与状态
+### M4｜Agent Loop Implementation (Core Research)
+Goal: Long-horizon multi-subtask execution with explicit state management
+Acceptance: Successfully runs compound tasks with ≥3 sequential skills while preserving task context and state.
 
-### M5｜异常恢复（可靠性）
-目标：处理各类执行失败场景
-验收：识别抓取失败、物体移位、识别丢失、运动超时；按策略选择重试/重观测/重规划/终止
+### M5｜Failure & Exception Recovery (Reliability)
+Goal: Handle diverse execution failure cases
+Acceptance: Detect failed grasp, object drift, lost detection, motion timeout; select retry / re-observe / replan / abort accordingly.
 
-### M6｜系统评测与消融实验（研究成果）
-目标：构建可复现Benchmark，量化评估Agent架构
-验收：完整采集任务成功率、恢复率、token消耗等指标；支持多组消融对照实验
+### M6｜System Evaluation & Ablation Studies (Research Output)
+Goal: Build reproducible benchmark for agent runtime
+Acceptance: Collect full metrics including success rate, recovery rate and token consumption; support multiple ablation experiments.
 
-## 📊 评估指标 & 消融实验
-### 核心评测指标
-- Task Success Rate 任务最终成功率
-- Tool Selection Accuracy 工具选择正确率
-- Argument Accuracy 工具参数正确性
-- Recovery Success Rate 失败恢复成功率
-- Average Tool Calls 单任务平均工具调用次数
-- Task Completion Time 任务耗时
-- Token Consumption 单任务模型Token开销
+## 📊 Evaluation Metrics & Ablation Experiments
+### Core Metrics
+- Task Success Rate
+- Tool Selection Accuracy
+- Argument Parameter Accuracy
+- Recovery Success Rate
+- Average Tool Calls per Task
+- Task Completion Time
+- Token Consumption per Task
 
-### 消融对照实验（研究核心）
-- A：仅单次Function Calling
-- B：基础ReAct循环
-- C：ReAct + 显式任务状态管理
-- D：ReAct + 状态 + 错误恢复
-- E：D + 环境观测反馈闭环
+### Ablation Test Suite (Core Research)
+- A: Single-shot Function Calling only
+- B: Basic ReAct loop
+- C: ReAct + explicit task state management
+- D: ReAct + state + failure recovery
+- E: D + environment observation feedback loop
 
-> 通过对照，量化验证每一个模块对系统性能、token开销的影响，产出可分析的工程结论。
+> Controlled comparisons quantify the impact of each module on task performance and token cost, producing actionable engineering insights.
 
-## 💻 开发环境 & 依赖
-推荐 Python `3.11 / 3.12`，使用 `uv` 管理依赖锁定版本，Git版本控制，pytest单元测试。
-基础依赖：
+## 💻 Development Environment & Dependencies
+Recommended Python `3.11 / 3.12`. Use `uv` for dependency locking, Git for version control and pytest for unit tests.
+Base dependencies:
 ```bash
 pip install mujoco gymnasium gymnasium-robotics numpy opencv-python pydantic pytest python-dotenv
 ```
-> 初期直接使用VLM API接入；Windows优先跑MuJoCo；如需ROS2+MoveIt2，后续迁移至Ubuntu 24.04。
+> Start with VLM API for perception. Run MuJoCo on Windows at early stage; migrate to Ubuntu 24.04 only if ROS 2 + MoveIt 2 is required later.
 
-## 🔍 核心研究问题（论文/技术报告主线）
-1. **Tool Abstraction**：机器人技能工具抽象粒度应该到哪一层？
-2. **Agent Loop**：什么时候继续执行，什么时候触发重新规划？
-3. **Context Management**：如何控制感知与工具历史，避免上下文窗口爆炸？
-4. **State Consistency**：大模型认知状态与仿真真实物理状态不一致如何处理？
-5. **Error Recovery**：哪些失败交给Skill层重试，哪些必须交给Agent重规划？
+## 🔍 Core Research Questions (Technical Report / Thesis Track)
+1. **Tool Abstraction**: What abstraction granularity is optimal for robot skill tools?
+2. **Agent Loop**: When to continue execution and when to trigger full replanning?
+3. **Context Management**: How to bound visual and tool history to avoid context window inflation?
+4. **State Consistency**: How to resolve mismatches between LLM’s mental task state and the true physical simulator state?
+5. **Error Recovery**: Which failures should be retried inside Skills, and which require Agent-level replanning?
 
-## 🚀 第一周开发任务清单
-> 优先完成M1，不提前写Agent逻辑
+## 🚀 Week 1 Development Checklist
+> Prioritize M1; do NOT implement agent logic prematurely
 ```
-[ ] 创建GitHub仓库 embodied-agent-runtime
-[ ] 安装Python3.12 + uv
-[ ] 安装MuJoCo
-[ ] 安装Gymnasium Robotics
-[ ] 启动 FetchPickAndPlace 仿真环境
-[ ] 读取仿真RGB相机图像
-[ ] 读取机械臂关节、夹爪状态
-[ ] 通过Python脚本，全自动完成一次Pick & Place
+[ ] Create GitHub repository embodied-agent-runtime
+[ ] Install Python 3.12 + uv
+[ ] Install MuJoCo
+[ ] Install Gymnasium Robotics
+[ ] Launch FetchPickAndPlace simulation environment
+[ ] Capture RGB camera image from simulator
+[ ] Read robot joint and gripper states
+[ ] Write Python script to fully automate one pick & place cycle
 ```
 
 ## 📄 License
-> 待填写，推荐 MIT 开源协议
+> To be filled, MIT license recommended
 
 ## 🤝 Contribute
-项目采用迭代式开发，每个Milestone保留可运行版本、单元测试与架构决策记录（ADR）。
-提交代码前运行pytest；新增技能/工具需要补充对应的测试用例。
-
-
+Iterative development workflow. Preserve runnable snapshots, unit tests and Architecture Decision Records (ADR) for every milestone.
+Run pytest before submitting code; add corresponding test cases for new skills/tools.
